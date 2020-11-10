@@ -32,7 +32,7 @@ fn setup(mut commands: Commands, mut materials: ResMut<Assets<ColorMaterial>>) {
     commands
         .spawn(SpriteComponents {
             material: materials.add(Color::rgb(0.1, 0.1, 0.1).into()),
-            transform: Transform::from_translation(Vec3::new(0.0, 0.0, 0.0)),
+            transform: Transform::from_translation(Vec3::new(0.0, 5.0, 0.0)),
             sprite: Sprite::new(Vec2::new(10.0, 10.0)),
             ..Default::default()
         })
@@ -44,7 +44,7 @@ fn setup(mut commands: Commands, mut materials: ResMut<Assets<ColorMaterial>>) {
         .spawn(SpriteComponents {
             material: materials.add(Color::rgb(0.5, 0.5, 0.5).into()),
             transform: Transform::from_translation(Vec3::new(0.0, -100.0, 0.0)),
-            sprite: Sprite::new(Vec2::new(1000.0, 10.0)),
+            sprite: Sprite::new(Vec2::new(1000.0, 200.0)),
             ..Default::default()
         })
         .with(Platform);
@@ -53,10 +53,10 @@ fn setup(mut commands: Commands, mut materials: ResMut<Assets<ColorMaterial>>) {
 const GRAVITY_ACCELERATION: f32 = -1.0;
 
 fn gravity_system(
-    mut query: Query<(&Player, &Sprite, &Transform, &mut Velocity, &mut Jumps)>,
+    mut query: Query<(&Player, &Sprite, &mut Transform, &mut Velocity, &mut Jumps)>,
     collider_query: Query<(&Transform, &Sprite)>,
 ) {
-    for (_player, player_sprite, player_transform, mut velocity, mut jumps) in query.iter_mut() {
+    for (_player, player_sprite, mut player_transform, mut velocity, mut jumps) in query.iter_mut() {
         let mut falling = true;
 
         for (transform, sprite) in collider_query.iter() {
@@ -70,6 +70,10 @@ fn gravity_system(
             if let Some(collision) = collision {
                 println!("Player: {:?}", player_transform);
                 *velocity.0.y_mut() = 0.0;
+
+                let delta = (transform.translation.y() + sprite.size.y() / 2.0) - (player_transform.translation.y() - player_sprite.size.y() / 2.0);
+
+                *player_transform.translation.y_mut() += delta;
                 falling = false;
                 jumps.0 = JUMP_COUNT;
             }
