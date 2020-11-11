@@ -52,6 +52,15 @@ fn setup(mut commands: Commands, mut materials: ResMut<Assets<ColorMaterial>>) {
     .with(Platform);
 
     commands
+    .spawn(SpriteComponents {
+        material: materials.add(Color::rgb(0.5, 0.5, 0.5).into()),
+        transform: Transform::from_translation(Vec3::new(-20.0, 50.0, 0.0)),
+        sprite: Sprite::new(Vec2::new(10.0, 200.0)),
+        ..Default::default()
+    })
+    .with(Platform);
+
+    commands
         .spawn(SpriteComponents {
             material: materials.add(Color::rgb(0.5, 0.5, 0.5).into()),
             transform: Transform::from_translation(Vec3::new(0.0, -100.0, 0.0)),
@@ -80,7 +89,7 @@ fn gravity_system(
             );
 
             if let Some(collision) = collision {
-                if let collision = Collision::Top {
+                if let Collision::Top = collision {
                     *velocity.0.y_mut() = 0.0;
                     let delta = (platform_transform.translation.y() + platform_sprite.size.y() / 2.0) - (player_transform.translation.y() - player_sprite.size.y() / 2.0);
                     *player_transform.translation.y_mut() += delta;
@@ -103,15 +112,42 @@ fn horizontal_movement(
     time: Res<Time>,
     keyboard_input: Res<Input<KeyCode>>,
 
-    mut query: Query<(&Player,  &mut Velocity)>,
+    mut query: Query<(&Player, &Sprite, &mut Transform, &mut Velocity, &mut Jumps)>,
+    platform_query: Query<(&Platform, &Transform, &Sprite)>,
+
 ) {
-    for (_player, mut velocity) in query.iter_mut() {
+    for (_player, player_sprite, mut player_transform, mut velocity, mut jumps) in query.iter_mut() {
         if keyboard_input.pressed(KeyCode::A) {
             *velocity.0.x_mut() -= time.delta_seconds * HORIZONTAL_ACCELERATION;
         } else if keyboard_input.pressed(KeyCode::D) {
             *velocity.0.x_mut() += time.delta_seconds * HORIZONTAL_ACCELERATION;
         } else {
             *velocity.0.x_mut() = 0.0;
+        }
+
+        for (_platform, platform_transform, platform_sprite) in platform_query.iter() {
+            let collision = collide(
+                player_transform.translation,
+                player_sprite.size,
+                platform_transform.translation,
+                platform_sprite.size,
+            );
+
+            if let Some(collision) = collision {
+                if let Collision::Left = collision {
+                    *velocity.0.x_mut() = 0.0;
+                    let delta = (platform_transform.translation.x() - platform_sprite.size.x() / 2.0) - (player_transform.translation.x() + player_sprite.size.x() / 2.0);
+                    *player_transform.translation.x_mut() += delta;
+                }
+
+                if let Collision::Right = collision {
+                    *velocity.0.x_mut() = 0.0;
+                    let delta = (platform_transform.translation.x() + platform_sprite.size.x() / 2.0) - (player_transform.translation.x() - player_sprite.size.x() / 2.0);
+                    *player_transform.translation.x_mut() += delta;
+                }
+
+
+            }
         }
 
         *velocity.0.x_mut() = velocity.0.x().min( MAX_HORIZONTAL_VELOCITY).max(-1.0 * MAX_HORIZONTAL_VELOCITY);
