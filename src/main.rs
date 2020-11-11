@@ -54,24 +54,24 @@ const GRAVITY_ACCELERATION: f32 = -1.0;
 
 fn gravity_system(
     mut query: Query<(&Player, &Sprite, &mut Transform, &mut Velocity, &mut Jumps)>,
-    collider_query: Query<(&Transform, &Sprite)>,
+    platform_query: Query<(&Platform, &Transform, &Sprite)>,
 ) {
     for (_player, player_sprite, mut player_transform, mut velocity, mut jumps) in query.iter_mut() {
         let mut falling = true;
 
-        for (transform, sprite) in collider_query.iter() {
+        for (_platform, platform_transform, platform_sprite) in platform_query.iter() {
             let collision = collide(
                 player_transform.translation,
                 player_sprite.size,
-                transform.translation,
-                sprite.size,
+                platform_transform.translation,
+                platform_sprite.size,
             );
 
             if let Some(collision) = collision {
                 println!("Player: {:?}", player_transform);
                 *velocity.0.y_mut() = 0.0;
 
-                let delta = (transform.translation.y() + sprite.size.y() / 2.0) - (player_transform.translation.y() - player_sprite.size.y() / 2.0);
+                let delta = (platform_transform.translation.y() + platform_sprite.size.y() / 2.0) - (player_transform.translation.y() - player_sprite.size.y() / 2.0);
 
                 *player_transform.translation.y_mut() += delta;
                 falling = false;
