@@ -16,6 +16,7 @@ fn main() {
         .add_plugins(DefaultPlugins)
         .add_startup_system(setup.system())
         .add_system(gravity_system.system())
+        .add_system(horizontal_movement.system())
         .add_system(jump_system.system())
         .add_system(position_system.system())
         .add_system(bevy::input::system::exit_on_esc_system.system())
@@ -40,6 +41,16 @@ fn setup(mut commands: Commands, mut materials: ResMut<Assets<ColorMaterial>>) {
         .with(Jumps(JUMP_COUNT))
         .with(Player);
 
+
+    commands
+    .spawn(SpriteComponents {
+        material: materials.add(Color::rgb(0.5, 0.5, 0.5).into()),
+        transform: Transform::from_translation(Vec3::new(0.0, 50.0, 0.0)),
+        sprite: Sprite::new(Vec2::new(100.0, 10.0)),
+        ..Default::default()
+    })
+    .with(Platform);
+
     commands
         .spawn(SpriteComponents {
             material: materials.add(Color::rgb(0.5, 0.5, 0.5).into()),
@@ -50,9 +61,10 @@ fn setup(mut commands: Commands, mut materials: ResMut<Assets<ColorMaterial>>) {
         .with(Platform);
 }
 
-const GRAVITY_ACCELERATION: f32 = -1.0;
+const GRAVITY_ACCELERATION: f32 = -20.0;
 
 fn gravity_system(
+    time: Res<Time>,
     mut query: Query<(&Player, &Sprite, &mut Transform, &mut Velocity, &mut Jumps)>,
     platform_query: Query<(&Platform, &Transform, &Sprite)>,
 ) {
@@ -68,20 +80,41 @@ fn gravity_system(
             );
 
             if let Some(collision) = collision {
-                println!("Player: {:?}", player_transform);
-                *velocity.0.y_mut() = 0.0;
-
-                let delta = (platform_transform.translation.y() + platform_sprite.size.y() / 2.0) - (player_transform.translation.y() - player_sprite.size.y() / 2.0);
-
-                *player_transform.translation.y_mut() += delta;
-                falling = false;
-                jumps.0 = JUMP_COUNT;
+                if let collision = Collision::Top {
+                    *velocity.0.y_mut() = 0.0;
+                    let delta = (platform_transform.translation.y() + platform_sprite.size.y() / 2.0) - (player_transform.translation.y() - player_sprite.size.y() / 2.0);
+                    *player_transform.translation.y_mut() += delta;
+                    falling = false;
+                    jumps.0 = JUMP_COUNT;
+                }
             }
         }
 
         if falling {
-            *velocity.0.y_mut() += GRAVITY_ACCELERATION;
+            *velocity.0.y_mut() += time.delta_seconds * GRAVITY_ACCELERATION;
         }
+    }
+}
+
+const MAX_HORIZONTAL_VELOCITY: f32 = 50.0;
+const HORIZONTAL_ACCELERATION: f32 = 10.0;
+
+fn horizontal_movement(
+    time: Res<Time>,
+    keyboard_input: Res<Input<KeyCode>>,
+
+    mut query: Query<(&Player,  &mut Velocity)>,
+) {
+    for (_player, mut velocity) in query.iter_mut() {
+        if keyboard_input.pressed(KeyCode::A) {
+            *velocity.0.x_mut() -= time.delta_seconds * HORIZONTAL_ACCELERATION;
+        } else if keyboard_input.pressed(KeyCode::D) {
+            *velocity.0.x_mut() += time.delta_seconds * HORIZONTAL_ACCELERATION;
+        } else {
+            *velocity.0.x_mut() = 0.0;
+        }
+
+        *velocity.0.x_mut() = velocity.0.x().min( MAX_HORIZONTAL_VELOCITY).max(-1.0 * MAX_HORIZONTAL_VELOCITY);
     }
 }
 
@@ -95,7 +128,7 @@ fn jump_system(
         for (mut jump, mut velocity) in query.iter_mut() {
             if jump.0 > 0 {
                 jump.0 -= 1;
-                *velocity.0.y_mut() += 100.0;
+                *velocity.0.y_mut() += 40.0;
             }
         }
 }
