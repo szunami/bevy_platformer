@@ -48,7 +48,6 @@ impl WalkLoop {
                 }
             }
         }
-        dbg!(self);
     }
 }
 
@@ -69,7 +68,6 @@ const JUMP_COUNT: usize = 3;
 
 fn setup(
     commands: &mut Commands,
-    mut materials: ResMut<Assets<ColorMaterial>>,
     asset_server: Res<AssetServer>,
     mut texture_atlases: ResMut<Assets<TextureAtlas>>,
 ) {
@@ -93,20 +91,8 @@ fn setup(
         .with(Player);
 }
 
-fn animate_sprite_system(
-    time: Res<Time>,
-    texture_atlases: Res<Assets<TextureAtlas>>,
-    mut query: Query<(
-        &mut TextureAtlasSprite,
-        &Handle<TextureAtlas>,
-        &WalkLoop,
-    )>,
-) {
-    for (mut sprite, texture_atlas_handle, walk_loop) in query.iter_mut() {
-        // timer.tick(time.delta_seconds());
-        // if timer.finished() {
-        let texture_atlas = texture_atlases.get(texture_atlas_handle).unwrap();
-
+fn animate_sprite_system(mut query: Query<(&mut TextureAtlasSprite, &WalkLoop)>) {
+    for (mut sprite, walk_loop) in query.iter_mut() {
         match walk_loop.walk_state {
             WalkState::Standing => {
                 sprite.index = 8;
@@ -115,8 +101,6 @@ fn animate_sprite_system(
                 sprite.index = index;
             }
         }
-
-        // }
     }
 }
 
@@ -164,17 +148,9 @@ fn horizontal_movement(
     time: Res<Time>,
     keyboard_input: Res<Input<KeyCode>>,
 
-    mut query: Query<(
-        &Player,
-        &mut Transform,
-        &mut Velocity,
-        &mut Jumps,
-        &mut WalkLoop,
-    )>,
-    platform_query: Query<(&Platform, &Transform, &Sprite)>,
+    mut query: Query<(&Player, &mut Transform, &mut Velocity, &mut WalkLoop)>,
 ) {
-    for (_player, mut player_transform, mut velocity, mut jumps, mut walk_loop) in query.iter_mut()
-    {
+    for (_player, mut _player_transform, mut velocity, mut walk_loop) in query.iter_mut() {
         if keyboard_input.pressed(KeyCode::A) {
             velocity.0.x -= time.delta_seconds() * HORIZONTAL_ACCELERATION;
         } else if keyboard_input.pressed(KeyCode::D) {
