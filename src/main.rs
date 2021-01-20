@@ -12,6 +12,17 @@ struct Platform;
 
 struct Jumps(usize);
 
+enum Facing {
+    Left,
+    Right
+}
+
+impl Default for Facing {
+    fn default() -> Self {
+        Facing::Right
+    }
+}
+
 #[derive(Debug)]
 struct WalkLoop {
     walk_state: WalkState,
@@ -21,30 +32,47 @@ struct WalkLoop {
 #[derive(Debug)]
 enum WalkState {
     Standing,
-    Walking(u32),
+    WalkingRight(u32),
+    WalkingLeft(u32),
 }
 
-impl WalkLoop {
-    fn default() -> WalkLoop {
+impl Default for WalkLoop {
+    fn default() -> Self {
         WalkLoop {
             walk_state: WalkState::Standing,
             timer: Timer::from_seconds(0.1, true),
         }
     }
+}
 
+impl WalkLoop {
     fn stop(&mut self) {
         self.walk_state = WalkState::Standing;
     }
 
-    fn increment(&mut self, time: &Res<Time>) {
+    fn increment_right(&mut self, time: &Res<Time>) {
         match self.walk_state {
-            WalkState::Standing => {
-                self.walk_state = WalkState::Walking(0);
+            WalkState::Standing | WalkState::WalkingLeft(_) => {
+                self.walk_state = WalkState::WalkingRight(0);
             }
-            WalkState::Walking(frame) => {
+            WalkState::WalkingRight(frame) => {
                 self.timer.tick(time.delta_seconds());
                 if self.timer.finished() {
-                    self.walk_state = WalkState::Walking((frame + 1) % 8);
+                    self.walk_state = WalkState::WalkingRight((frame + 1) % 8);
+                }
+            }
+        }
+    }
+
+    fn increment_left(&mut self, time: &Res<Time>) {
+        match self.walk_state {
+            WalkState::Standing | WalkState::WalkingRight(_) => {
+                self.walk_state = WalkState::WalkingLeft(0);
+            }
+            WalkState::WalkingLeft(frame) => {
+                self.timer.tick(time.delta_seconds());
+                if self.timer.finished() {
+                    self.walk_state = WalkState::WalkingLeft((frame + 1) % 8);
                 }
             }
         }
@@ -82,12 +110,17 @@ fn setup(
     commands
         .spawn(SpriteSheetBundle {
             texture_atlas: walk_handle,
-            transform: Transform::from_translation(Vec3::new(0.0, -50.0, 0.0)),
+            transform: Transform {
+                translation: Vec3::new(0.0, -50.0, 0.0),
+                scale: Vec3::new(-1.0, 1.0, 1.0),
+                ..Default::default()
+            },
             ..Default::default()
         })
         .with(Velocity(Vec2::default()))
         .with(Jumps(JUMP_COUNT))
         .with(WalkLoop::default())
+        .with(Facing::default())
         .with(Player);
 }
 
@@ -97,7 +130,7 @@ fn animate_sprite_system(mut query: Query<(&mut TextureAtlasSprite, &WalkLoop)>)
             WalkState::Standing => {
                 sprite.index = 8;
             }
-            WalkState::Walking(index) => {
+            WalkState::WalkingRight(index) | WalkState::WalkingLeft(index) => {
                 sprite.index = index;
             }
         }
@@ -148,14 +181,25 @@ fn horizontal_movement(
     time: Res<Time>,
     keyboard_input: Res<Input<KeyCode>>,
 
-    mut query: Query<(&Player, &mut Transform, &mut Velocity, &mut WalkLoop)>,
+    mut query: Query<(&Player, &mut Transform, &mut Velocity, &mut WalkLoop, &mut Facing)>,
 ) {
-    for (_player, mut _player_transform, mut velocity, mut walk_loop) in query.iter_mut() {
+    for (_player, mut player_transform, mut velocity, mut walk_loop, mut facing) in query.iter_mut() {
         if keyboard_input.pressed(KeyCode::A) {
             velocity.0.x -= time.delta_seconds() * HORIZONTAL_ACCELERATION;
+            walk_loop.increment_left(&time);
+
+            *facing = Facing::Left;
+
+
+            player_transform.scale = Vec3::new(-1.0, 1.0, 1.0);
+
         } else if keyboard_input.pressed(KeyCode::D) {
             velocity.0.x += time.delta_seconds() * HORIZONTAL_ACCELERATION;
-            walk_loop.increment(&time);
+            walk_loop.increment_right(&time);
+
+            *facing = Facing::Right;
+            player_transform.scale = Vec3::new(1.0, 1.0, 1.0);
+
         } else {
             velocity.0.x = 0.0;
             walk_loop.stop();
