@@ -5,11 +5,35 @@ use bevy::{
 
 struct Player;
 
+#[derive(Debug)]
 struct Velocity(Vec2);
 
 struct Platform;
 
 struct Jumps(usize);
+
+enum WalkState {
+    Standing,
+    Walking(u32),
+}
+
+impl WalkState {
+    fn stop(&mut self) {
+        *self = WalkState::Standing;
+    }
+
+    fn increment(&mut self) {
+        match self {
+            WalkState::Standing => {
+                *self = WalkState::Walking(0);
+            }
+            WalkState::Walking(frame) => {
+                // TODO: do this on ticker
+                *self = WalkState::Walking((*frame + 1) % 8);
+            }
+        }
+    }
+}
 
 fn main() {
     App::build()
@@ -20,6 +44,7 @@ fn main() {
         .add_system(jump_system.system())
         .add_system(position_system.system())
         .add_system(bevy::input::system::exit_on_esc_system.system())
+        .add_system(animate_sprite_system.system())
         .run();
 }
 
@@ -29,48 +54,50 @@ fn setup(
     commands: &mut Commands,
     mut materials: ResMut<Assets<ColorMaterial>>,
     asset_server: Res<AssetServer>,
+    mut texture_atlases: ResMut<Assets<TextureAtlas>>,
 ) {
     commands
         .spawn(Camera2dBundle::default())
         .spawn(CameraUiBundle::default());
 
+
+    let walk_handle = asset_server.load("textures/sam.png");
+    let walk_atlas = TextureAtlas::from_grid(walk_handle, Vec2::new(27.0, 52.0), 9, 1);
+    let walk_handle = texture_atlases.add(walk_atlas);
+
     commands
-        .spawn(SpriteBundle {
-            material: materials.add(Color::rgb(0.1, 0.1, 0.1).into()),
-            transform: Transform::from_translation(Vec3::new(0.0, 5.0, 0.0)),
-            sprite: Sprite::new(Vec2::new(10.0, 10.0)),
-            ..Default::default()
-        })
+    .spawn(SpriteSheetBundle {
+        texture_atlas: walk_handle,
+        transform: Transform::from_translation(Vec3::new(0.0, -50.0, 0.0)),
+        ..Default::default()
+    })
         .with(Velocity(Vec2::default()))
         .with(Jumps(JUMP_COUNT))
+        .with(WalkState::Standing)
+        .with(Timer::from_seconds(0.1, true))
         .with(Player);
+}
 
-    commands
-        .spawn(SpriteBundle {
-            material: materials.add(Color::rgb(0.5, 0.5, 0.5).into()),
-            transform: Transform::from_translation(Vec3::new(0.0, 50.0, 0.0)),
-            sprite: Sprite::new(Vec2::new(100.0, 10.0)),
-            ..Default::default()
-        })
-        .with(Platform);
+fn animate_sprite_system(
+    time: Res<Time>,
+    texture_atlases: Res<Assets<TextureAtlas>>,
+    mut query: Query<(&mut Timer, &mut TextureAtlasSprite, &Handle<TextureAtlas>, &WalkState)>,
+) { 
+    for (mut timer, mut sprite, texture_atlas_handle, walk_state) in query.iter_mut() {
+        // timer.tick(time.delta_seconds());
+        // if timer.finished() {
+        let texture_atlas = texture_atlases.get(texture_atlas_handle).unwrap();
 
-    commands
-        .spawn(SpriteBundle {
-            material: materials.add(Color::rgb(0.5, 0.5, 0.5).into()),
-            transform: Transform::from_translation(Vec3::new(-20.0, 50.0, 0.0)),
-            sprite: Sprite::new(Vec2::new(10.0, 200.0)),
-            ..Default::default()
-        })
-        .with(Platform);
-
-    commands
-        .spawn(SpriteBundle {
-            material: materials.add(Color::rgb(0.5, 0.5, 0.5).into()),
-            transform: Transform::from_translation(Vec3::new(0.0, -100.0, 0.0)),
-            sprite: Sprite::new(Vec2::new(1000.0, 200.0)),
-            ..Default::default()
-        })
-        .with(Platform);
+        match walk_state {
+            WalkState::Standing => {
+                sprite.index = 8;
+            }
+            WalkState::Walking(index) => {
+                sprite.index = *index;
+            }
+        }
+        // }
+    }
 }
 
 const GRAVITY_ACCELERATION: f32 = -20.0;
@@ -117,43 +144,45 @@ fn horizontal_movement(
     time: Res<Time>,
     keyboard_input: Res<Input<KeyCode>>,
 
-    mut query: Query<(&Player, &Sprite, &mut Transform, &mut Velocity, &mut Jumps)>,
+    mut query: Query<(&Player, &mut Transform, &mut Velocity, &mut Jumps, &mut WalkState)>,
     platform_query: Query<(&Platform, &Transform, &Sprite)>,
 ) {
-    for (_player, player_sprite, mut player_transform, mut velocity, mut jumps) in query.iter_mut()
+    for (_player, mut player_transform, mut velocity, mut jumps, mut walk_state) in query.iter_mut()
     {
         if keyboard_input.pressed(KeyCode::A) {
             velocity.0.x -= time.delta_seconds() * HORIZONTAL_ACCELERATION;
         } else if keyboard_input.pressed(KeyCode::D) {
             velocity.0.x += time.delta_seconds() * HORIZONTAL_ACCELERATION;
+            walk_state.increment();
         } else {
             velocity.0.x = 0.0;
+            walk_state.stop();
         }
 
-        for (_platform, platform_transform, platform_sprite) in platform_query.iter() {
-            let collision = collide(
-                player_transform.translation,
-                player_sprite.size,
-                platform_transform.translation,
-                platform_sprite.size,
-            );
+        // for (_platform, platform_transform, platform_sprite) in platform_query.iter() {
+        //     let collision = collide(
+        //         player_transform.translation,
+        //         player_sprite.size,
+        //         platform_transform.translation,
+        //         platform_sprite.size,
+        //     );
 
-            if let Some(collision) = collision {
-                if let Collision::Left = collision {
-                    velocity.0.x = 0.0;
-                    let delta = (platform_transform.translation.x - platform_sprite.size.x / 2.0)
-                        - (player_transform.translation.x + player_sprite.size.x / 2.0);
-                    player_transform.translation.x += delta;
-                }
+        //     if let Some(collision) = collision {
+        //         if let Collision::Left = collision {
+        //             velocity.0.x = 0.0;
+        //             let delta = (platform_transform.translation.x - platform_sprite.size.x / 2.0)
+        //                 - (player_transform.translation.x + player_sprite.size.x / 2.0);
+        //             player_transform.translation.x += delta;
+        //         }
 
-                if let Collision::Right = collision {
-                    velocity.0.x = 0.0;
-                    let delta = (platform_transform.translation.x + platform_sprite.size.x / 2.0)
-                        - (player_transform.translation.x - player_sprite.size.x / 2.0);
-                    player_transform.translation.x += delta;
-                }
-            }
-        }
+        //         if let Collision::Right = collision {
+        //             velocity.0.x = 0.0;
+        //             let delta = (platform_transform.translation.x + platform_sprite.size.x / 2.0)
+        //                 - (player_transform.translation.x - player_sprite.size.x / 2.0);
+        //             player_transform.translation.x += delta;
+        //         }
+        //     }
+        // }
 
         velocity.0.x = velocity
             .0
