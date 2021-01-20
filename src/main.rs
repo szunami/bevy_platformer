@@ -12,26 +12,43 @@ struct Platform;
 
 struct Jumps(usize);
 
+#[derive(Debug)]
+struct WalkLoop {
+    walk_state: WalkState,
+    timer: Timer,
+}
+
+#[derive(Debug)]
 enum WalkState {
     Standing,
     Walking(u32),
 }
 
-impl WalkState {
-    fn stop(&mut self) {
-        *self = WalkState::Standing;
+impl WalkLoop {
+    fn default() -> WalkLoop {
+        WalkLoop {
+            walk_state: WalkState::Standing,
+            timer: Timer::from_seconds(0.1, true),
+        }
     }
 
-    fn increment(&mut self) {
-        match self {
+    fn stop(&mut self) {
+        self.walk_state = WalkState::Standing;
+    }
+
+    fn increment(&mut self, time: &Res<Time>) {
+        match self.walk_state {
             WalkState::Standing => {
-                *self = WalkState::Walking(0);
+                self.walk_state = WalkState::Walking(0);
             }
             WalkState::Walking(frame) => {
-                // TODO: do this on ticker
-                *self = WalkState::Walking((*frame + 1) % 8);
+                self.timer.tick(time.delta_seconds());
+                if self.timer.finished() {
+                    self.walk_state = WalkState::Walking((frame + 1) % 8);
+                }
             }
         }
+        dbg!(self);
     }
 }
 
@@ -60,42 +77,45 @@ fn setup(
         .spawn(Camera2dBundle::default())
         .spawn(CameraUiBundle::default());
 
-
     let walk_handle = asset_server.load("textures/sam.png");
     let walk_atlas = TextureAtlas::from_grid(walk_handle, Vec2::new(27.0, 52.0), 9, 1);
     let walk_handle = texture_atlases.add(walk_atlas);
 
     commands
-    .spawn(SpriteSheetBundle {
-        texture_atlas: walk_handle,
-        transform: Transform::from_translation(Vec3::new(0.0, -50.0, 0.0)),
-        ..Default::default()
-    })
+        .spawn(SpriteSheetBundle {
+            texture_atlas: walk_handle,
+            transform: Transform::from_translation(Vec3::new(0.0, -50.0, 0.0)),
+            ..Default::default()
+        })
         .with(Velocity(Vec2::default()))
         .with(Jumps(JUMP_COUNT))
-        .with(WalkState::Standing)
-        .with(Timer::from_seconds(0.1, true))
+        .with(WalkLoop::default())
         .with(Player);
 }
 
 fn animate_sprite_system(
     time: Res<Time>,
     texture_atlases: Res<Assets<TextureAtlas>>,
-    mut query: Query<(&mut Timer, &mut TextureAtlasSprite, &Handle<TextureAtlas>, &WalkState)>,
-) { 
-    for (mut timer, mut sprite, texture_atlas_handle, walk_state) in query.iter_mut() {
+    mut query: Query<(
+        &mut TextureAtlasSprite,
+        &Handle<TextureAtlas>,
+        &WalkLoop,
+    )>,
+) {
+    for (mut sprite, texture_atlas_handle, walk_loop) in query.iter_mut() {
         // timer.tick(time.delta_seconds());
         // if timer.finished() {
         let texture_atlas = texture_atlases.get(texture_atlas_handle).unwrap();
 
-        match walk_state {
+        match walk_loop.walk_state {
             WalkState::Standing => {
                 sprite.index = 8;
             }
             WalkState::Walking(index) => {
-                sprite.index = *index;
+                sprite.index = index;
             }
         }
+
         // }
     }
 }
@@ -144,19 +164,25 @@ fn horizontal_movement(
     time: Res<Time>,
     keyboard_input: Res<Input<KeyCode>>,
 
-    mut query: Query<(&Player, &mut Transform, &mut Velocity, &mut Jumps, &mut WalkState)>,
+    mut query: Query<(
+        &Player,
+        &mut Transform,
+        &mut Velocity,
+        &mut Jumps,
+        &mut WalkLoop,
+    )>,
     platform_query: Query<(&Platform, &Transform, &Sprite)>,
 ) {
-    for (_player, mut player_transform, mut velocity, mut jumps, mut walk_state) in query.iter_mut()
+    for (_player, mut player_transform, mut velocity, mut jumps, mut walk_loop) in query.iter_mut()
     {
         if keyboard_input.pressed(KeyCode::A) {
             velocity.0.x -= time.delta_seconds() * HORIZONTAL_ACCELERATION;
         } else if keyboard_input.pressed(KeyCode::D) {
             velocity.0.x += time.delta_seconds() * HORIZONTAL_ACCELERATION;
-            walk_state.increment();
+            walk_loop.increment(&time);
         } else {
             velocity.0.x = 0.0;
-            walk_state.stop();
+            walk_loop.stop();
         }
 
         // for (_platform, platform_transform, platform_sprite) in platform_query.iter() {
