@@ -161,31 +161,6 @@ fn horizontal_movement(
             walk_loop.stop();
         }
 
-        // for (_platform, platform_transform, platform_sprite) in platform_query.iter() {
-        //     let collision = collide(
-        //         player_transform.translation,
-        //         player_sprite.size,
-        //         platform_transform.translation,
-        //         platform_sprite.size,
-        //     );
-
-        //     if let Some(collision) = collision {
-        //         if let Collision::Left = collision {
-        //             velocity.0.x = 0.0;
-        //             let delta = (platform_transform.translation.x - platform_sprite.size.x / 2.0)
-        //                 - (player_transform.translation.x + player_sprite.size.x / 2.0);
-        //             player_transform.translation.x += delta;
-        //         }
-
-        //         if let Collision::Right = collision {
-        //             velocity.0.x = 0.0;
-        //             let delta = (platform_transform.translation.x + platform_sprite.size.x / 2.0)
-        //                 - (player_transform.translation.x - player_sprite.size.x / 2.0);
-        //             player_transform.translation.x += delta;
-        //         }
-        //     }
-        // }
-
         velocity.0.x = velocity
             .0
             .x
