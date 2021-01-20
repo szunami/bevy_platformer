@@ -12,17 +12,6 @@ struct Platform;
 
 struct Jumps(usize);
 
-enum Facing {
-    Left,
-    Right
-}
-
-impl Default for Facing {
-    fn default() -> Self {
-        Facing::Right
-    }
-}
-
 #[derive(Debug)]
 struct WalkLoop {
     walk_state: WalkState,
@@ -65,6 +54,7 @@ impl WalkLoop {
     }
 
     fn increment_left(&mut self, time: &Res<Time>) {
+
         match self.walk_state {
             WalkState::Standing | WalkState::WalkingRight(_) => {
                 self.walk_state = WalkState::WalkingLeft(0);
@@ -77,6 +67,7 @@ impl WalkLoop {
             }
         }
     }
+    
 }
 
 fn main() {
@@ -112,7 +103,7 @@ fn setup(
             texture_atlas: walk_handle,
             transform: Transform {
                 translation: Vec3::new(0.0, -50.0, 0.0),
-                scale: Vec3::new(-1.0, 1.0, 1.0),
+                scale: Vec3::new(4.0, 4.0, 1.0),
                 ..Default::default()
             },
             ..Default::default()
@@ -120,7 +111,6 @@ fn setup(
         .with(Velocity(Vec2::default()))
         .with(Jumps(JUMP_COUNT))
         .with(WalkLoop::default())
-        .with(Facing::default())
         .with(Player);
 }
 
@@ -181,24 +171,18 @@ fn horizontal_movement(
     time: Res<Time>,
     keyboard_input: Res<Input<KeyCode>>,
 
-    mut query: Query<(&Player, &mut Transform, &mut Velocity, &mut WalkLoop, &mut Facing)>,
+    mut query: Query<(&Player, &mut Transform, &mut Velocity, &mut WalkLoop)>,
 ) {
-    for (_player, mut player_transform, mut velocity, mut walk_loop, mut facing) in query.iter_mut() {
+    for (_player, mut player_transform, mut velocity, mut walk_loop) in query.iter_mut() {
         if keyboard_input.pressed(KeyCode::A) {
             velocity.0.x -= time.delta_seconds() * HORIZONTAL_ACCELERATION;
             walk_loop.increment_left(&time);
-
-            *facing = Facing::Left;
-
-
-            player_transform.scale = Vec3::new(-1.0, 1.0, 1.0);
+            player_transform.scale = Vec3::new(-4.0, 4.0, 1.0);
 
         } else if keyboard_input.pressed(KeyCode::D) {
             velocity.0.x += time.delta_seconds() * HORIZONTAL_ACCELERATION;
             walk_loop.increment_right(&time);
-
-            *facing = Facing::Right;
-            player_transform.scale = Vec3::new(1.0, 1.0, 1.0);
+            player_transform.scale = Vec3::new(4.0, 4.0, 1.0);
 
         } else {
             velocity.0.x = 0.0;
